@@ -249,6 +249,21 @@ func (s *ObjectsClient) PutMetadata(ctx context.Context, input *PutObjectMetadat
 	return nil
 }
 
+// CreateMpuBody represents the body of a CreateMpu request
+type CreateMpuBody struct {
+	ObjectPath string
+	Headers    map[string]string
+}
+
+// CreateMpuInput represents parameters to a CreateMpu operation
+type CreateMpuInput struct {
+	ObjectPath      string
+	DurabilityLevel uint64
+	ContentMD5      string
+	ContentLength   uint64
+	Body            CreateMpuBody
+}
+
 // PutObjectInput represents parameters to a PutObject operation.
 type PutObjectInput struct {
 	ObjectPath       string
@@ -283,6 +298,12 @@ func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 	}
 
 	return putObject(*s, ctx, input, absPath)
+}
+
+func (s *ObjectsClient) CreateMpu(ctx context.Context, input *CreateMpuInput) error {
+	absPath := absFileInput(s.client.AccountName, input.ObjectPath)
+
+	return createMpu(*s, ctx, input, absPath)
 }
 
 // _AbsCleanPath is an internal type that means the input has been
@@ -370,6 +391,35 @@ func createDirectory(c ObjectsClient, ctx context.Context, absPath _AbsCleanPath
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput, absPath _AbsCleanPath) error {
+	headers := &http.Header{}
+	for key, value := range input.Body.Headers {
+		headers.Set(key, value)
+	}
+	if input.DurabilityLevel != 0 {
+		headers.Set("Durability-Level", strconv.FormatUint(input.DurabilityLevel, 10))
+	}
+	if input.ContentLength != 0 {
+		headers.Set("Content-Length", strconv.FormatUint(input.ContentLength, 10))
+	}
+	if input.ContentMD5 != "" {
+		headers.Set("Content-MD5", input.ContentMD5)
+	}
+
+	reqInput := client.RequestInput{
+		Method:  http.MethodPost,
+		Path:    "/" + c.client.AccountName + "/uploads",
+		Headers: &http.Header{},
+		Body:    input.Body,
+	}
+	_, err := c.client.ExecuteRequestRaw(ctx, reqInput)
+	if err != nil {
+		return errors.Wrap(err, "unable to create mpu")
 	}
 
 	return nil
