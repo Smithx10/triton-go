@@ -249,13 +249,13 @@ func (s *ObjectsClient) PutMetadata(ctx context.Context, input *PutObjectMetadat
 	return nil
 }
 
-// CreateMpuBody represents the body of a CreateMpu request
+// CreateMpuBody represents the body of a CreateMpu request.
 type CreateMpuBody struct {
 	ObjectPath string
 	Headers    map[string]string
 }
 
-// CreateMpuInput represents parameters to a CreateMpu operation
+// CreateMpuInput represents parameters to a CreateMpu operation.
 type CreateMpuInput struct {
 	ObjectPath      string
 	DurabilityLevel uint64
@@ -279,6 +279,15 @@ type PutObjectInput struct {
 	ForceInsert      bool //Force the creation of the directory tree
 }
 
+// UploadPartInput represents parameters to a UploadPart operation.
+type UploadPartInput struct {
+	PartDirectory string
+	PartNum       uint64
+	ContentMD5    string
+	Headers       map[string]string
+	ObjectReader  io.Reader
+}
+
 func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 	absPath := absFileInput(s.client.AccountName, input.ObjectPath)
 
@@ -300,10 +309,14 @@ func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 	return putObject(*s, ctx, input, absPath)
 }
 
-func (s *ObjectsClient) CreateMpu(ctx context.Context, input *CreateMpuInput) error {
+func (s *ObjectsClient) CreateMultipartUplad(ctx context.Context, input *CreateMpuInput) error {
 	absPath := absFileInput(s.client.AccountName, input.ObjectPath)
 
 	return createMpu(*s, ctx, input, absPath)
+}
+
+func (s *ObjectsClient) UploadPart(ctx context.Context, input *UploadPartInput) error {
+	return uploadPart(*s, ctx, input)
 }
 
 // _AbsCleanPath is an internal type that means the input has been
@@ -420,6 +433,34 @@ func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput, absP
 	_, err := c.client.ExecuteRequestRaw(ctx, reqInput)
 	if err != nil {
 		return errors.Wrap(err, "unable to create mpu")
+	}
+
+	return nil
+}
+
+func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) error {
+	headers := &http.Header{}
+	for key, value := range input.Headers {
+		headers.Set(key, value)
+	}
+
+	if input.ContentMD5 != "" {
+		headers.Set("Content-MD5", input.ContentMD5)
+	}
+	partNum := strconv.FormatUint(input.PartNum, 10)
+	partPath := input.PartDirectory + "/" + partNum
+	reqInput := client.RequestNoEncodeInput{
+		Method:  http.MethodPost,
+		Path:    partPath,
+		Headers: &http.Header{},
+		Body:    input.ObjectReader,
+	}
+	respBody, _, err := c.client.ExecuteRequestNoEncode(ctx, reqInput)
+	if respBody != nil {
+		defer respBody.Close()
+	}
+	if err != nil {
+		return errors.Wrap(err, "unable to upload part")
 	}
 
 	return nil
