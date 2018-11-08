@@ -249,10 +249,22 @@ func (s *ObjectsClient) PutMetadata(ctx context.Context, input *PutObjectMetadat
 	return nil
 }
 
+// CommitMpuBody represents the body of a CommitMpu request
+type CommitMpuBody struct {
+	Parts []string
+}
+
 // CreateMpuBody represents the body of a CreateMpu request.
 type CreateMpuBody struct {
 	ObjectPath string
 	Headers    map[string]string
+}
+
+// CommitMpuInput represents parameters to a CommitMpu operation
+type CommitMpuInput struct {
+	ObjectDirectoryPath string
+	Headers             map[string]string
+	Body                CommitMpuBody
 }
 
 // CreateMpuInput represents parameters to a CreateMpu operation.
@@ -281,11 +293,11 @@ type PutObjectInput struct {
 
 // UploadPartInput represents parameters to a UploadPart operation.
 type UploadPartInput struct {
-	PartDirectory string
-	PartNum       uint64
-	ContentMD5    string
-	Headers       map[string]string
-	ObjectReader  io.Reader
+	ObjectDirectoryPath string
+	PartNum             uint64
+	ContentMD5          string
+	Headers             map[string]string
+	ObjectReader        io.Reader
 }
 
 func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
@@ -307,6 +319,10 @@ func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 	}
 
 	return putObject(*s, ctx, input, absPath)
+}
+
+func (s *ObjectsClient) CommitMultipartUpload(ctx context.Context, input *CommitMpuInput) error {
+	return commitMpu(*s, ctx, input)
 }
 
 func (s *ObjectsClient) CreateMultipartUplad(ctx context.Context, input *CreateMpuInput) error {
@@ -409,6 +425,26 @@ func createDirectory(c ObjectsClient, ctx context.Context, absPath _AbsCleanPath
 	return nil
 }
 
+func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) error {
+	headers := &http.Header{}
+	for key, value := range input.Headers {
+		headers.Set(key, value)
+	}
+
+	reqInput := client.RequestInput{
+		Method:  http.MethodPost,
+		Path:    input.ObjectDirectoryPath + "/commit",
+		Headers: &http.Header{},
+		Body:    input.Body,
+	}
+	_, err := c.client.ExecuteRequestRaw(ctx, reqInput)
+	if err != nil {
+		return errors.Wrap(err, "unable to commit mpu")
+	}
+
+	return nil
+}
+
 func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput, absPath _AbsCleanPath) error {
 	headers := &http.Header{}
 	for key, value := range input.Body.Headers {
@@ -448,7 +484,7 @@ func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) er
 		headers.Set("Content-MD5", input.ContentMD5)
 	}
 	partNum := strconv.FormatUint(input.PartNum, 10)
-	partPath := input.PartDirectory + "/" + partNum
+	partPath := input.ObjectDirectoryPath + "/" + partNum
 	reqInput := client.RequestNoEncodeInput{
 		Method:  http.MethodPost,
 		Path:    partPath,
