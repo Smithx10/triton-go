@@ -269,7 +269,6 @@ type CommitMpuInput struct {
 
 // CreateMpuInput represents parameters to a CreateMpu operation.
 type CreateMpuInput struct {
-	ObjectPath      string
 	DurabilityLevel uint64
 	ContentMD5      string
 	ContentLength   uint64
@@ -325,10 +324,9 @@ func (s *ObjectsClient) CommitMultipartUpload(ctx context.Context, input *Commit
 	return commitMpu(*s, ctx, input)
 }
 
-func (s *ObjectsClient) CreateMultipartUplad(ctx context.Context, input *CreateMpuInput) error {
-	absPath := absFileInput(s.client.AccountName, input.ObjectPath)
+func (s *ObjectsClient) CreateMultipartUpload(ctx context.Context, input *CreateMpuInput) error {
 
-	return createMpu(*s, ctx, input, absPath)
+	return createMpu(*s, ctx, input)
 }
 
 func (s *ObjectsClient) UploadPart(ctx context.Context, input *UploadPartInput) error {
@@ -445,7 +443,7 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 	return nil
 }
 
-func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput, absPath _AbsCleanPath) error {
+func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) error {
 	headers := &http.Header{}
 	for key, value := range input.Body.Headers {
 		headers.Set(key, value)
