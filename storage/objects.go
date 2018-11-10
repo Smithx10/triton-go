@@ -10,6 +10,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -256,8 +257,8 @@ type CommitMpuBody struct {
 
 // CreateMpuBody represents the body of a CreateMpu request.
 type CreateMpuBody struct {
-	ObjectPath string
-	Headers    map[string]string
+	ObjectPath string            `json:"objectPath"`
+	Headers    map[string]string `json:"headers,omitempty"`
 }
 
 // CommitMpuInput represents parameters to a CommitMpu operation
@@ -273,6 +274,11 @@ type CreateMpuInput struct {
 	ContentMD5      string
 	ContentLength   uint64
 	Body            CreateMpuBody
+}
+
+type CreateMpuOutput struct {
+	Id             string `json:"id"`
+	PartsDirectory string `json:"partsDirectory"`
 }
 
 // PutObjectInput represents parameters to a PutObject operation.
@@ -301,7 +307,6 @@ type UploadPartInput struct {
 
 func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 	absPath := absFileInput(s.client.AccountName, input.ObjectPath)
-
 	if input.ForceInsert {
 		absDirName := _AbsCleanPath(path.Dir(string(absPath)))
 		exists, err := checkDirectoryTreeExists(*s, ctx, absDirName)
@@ -324,8 +329,7 @@ func (s *ObjectsClient) CommitMultipartUpload(ctx context.Context, input *Commit
 	return commitMpu(*s, ctx, input)
 }
 
-func (s *ObjectsClient) CreateMultipartUpload(ctx context.Context, input *CreateMpuInput) error {
-
+func (s *ObjectsClient) CreateMultipartUpload(ctx context.Context, input *CreateMpuInput) (*CreateMpuOutput, error) {
 	return createMpu(*s, ctx, input)
 }
 
@@ -443,7 +447,7 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 	return nil
 }
 
-func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) error {
+func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) (*CreateMpuOutput, error) {
 	headers := &http.Header{}
 	for key, value := range input.Body.Headers {
 		headers.Set(key, value)
@@ -464,12 +468,21 @@ func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) erro
 		Headers: &http.Header{},
 		Body:    input.Body,
 	}
-	_, err := c.client.ExecuteRequestRaw(ctx, reqInput)
+	respBody, _, err := c.client.ExecuteRequestStorage(ctx, reqInput)
 	if err != nil {
-		return errors.Wrap(err, "unable to create mpu")
+		return nil, errors.Wrap(err, "unable to create mpu")
+	}
+	if respBody != nil {
+		defer respBody.Close()
 	}
 
-	return nil
+	response := &CreateMpuOutput{}
+	decoder := json.NewDecoder(respBody)
+	if err = decoder.Decode(&response); err != nil {
+		return nil, errors.Wrap(err, "unable to decode create mpu response")
+	}
+
+	return response, nil
 }
 
 func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) error {
@@ -483,6 +496,7 @@ func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) er
 	}
 	partNum := strconv.FormatUint(input.PartNum, 10)
 	partPath := input.ObjectDirectoryPath + "/" + partNum
+
 	reqInput := client.RequestNoEncodeInput{
 		Method:  http.MethodPost,
 		Path:    partPath,

@@ -78,7 +78,7 @@ func main() {
 	}
 
 	config := &triton.ClientConfig{
-		MantaURL:    os.Getenv("TRITON_URL"),
+		MantaURL:    os.Getenv("MANTA_URL"),
 		AccountName: accountName,
 		Username:    userName,
 		Signers:     []authentication.Signer{signer},
@@ -93,13 +93,16 @@ func main() {
 		ObjectPath: "/stor/foo.txt",
 	}
 
-	createMpuInput := storage.CreateMpuInput{
-		Body: mpuBody,
+	createMpuInput := &storage.CreateMpuInput{
+		DurabilityLevel: 2,
+		Body:            mpuBody,
 	}
 
-	err = client.Objects().CreateMultipartUpload(context.Background(), &createMpuInput)
+	response := &storage.CreateMpuOutput{}
+	response, err = client.Objects().CreateMultipartUpload(context.Background(), createMpuInput)
 	if err != nil {
 		log.Fatalf("storage.Objects.CreateMpu: %v", err)
 	}
+	fmt.Printf("Response Body\nid: %s\npartsDirectory: %s\n", response.Id, response.PartsDirectory)
 	fmt.Println("Successfully created MPU for /tmp/foo.txt!")
 }
