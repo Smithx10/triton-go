@@ -498,7 +498,7 @@ func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) er
 	partPath := input.ObjectDirectoryPath + "/" + partNum
 
 	reqInput := client.RequestNoEncodeInput{
-		Method:  http.MethodPost,
+		Method:  http.MethodPut,
 		Path:    partPath,
 		Headers: &http.Header{},
 		Body:    input.ObjectReader,

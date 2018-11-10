@@ -105,4 +105,22 @@ func main() {
 	}
 	fmt.Printf("Response Body\nid: %s\npartsDirectory: %s\n", response.Id, response.PartsDirectory)
 	fmt.Println("Successfully created MPU for /tmp/foo.txt!")
+
+	reader, err := os.Open("/tmp/foo.txt")
+	if err != nil {
+		log.Fatalf("os.Open: %v", err)
+	}
+	defer reader.Close()
+
+	uploadPartInput := &storage.UploadPartInput{
+		ObjectDirectoryPath: response.PartsDirectory,
+		PartNum:	     1,
+		ObjectReader:	     reader,
+	}
+
+	err = client.Objects().UploadPart(context.Background(), uploadPartInput)
+	if err != nil {
+		log.Fatalf("storage.Objects.UploadPart: %v", err)
+	}
+	fmt.Println("Successfully uploaded /tmp/foo.txt part!")
 }
