@@ -90,7 +90,7 @@ func main() {
 	}
 
 	mpuBody := storage.CreateMpuBody{
-		ObjectPath: "/stor/foo.txt",
+		ObjectPath: "foo.txt",
 	}
 
 	createMpuInput := &storage.CreateMpuInput{
@@ -118,9 +118,29 @@ func main() {
 		ObjectReader:	     reader,
 	}
 
-	err = client.Objects().UploadPart(context.Background(), uploadPartInput)
+	response2 := &storage.UploadPartOutput{}
+	response2, err = client.Objects().UploadPart(context.Background(), uploadPartInput)
 	if err != nil {
 		log.Fatalf("storage.Objects.UploadPart: %v", err)
 	}
-	fmt.Println("Successfully uploaded /tmp/foo.txt part!")
+	fmt.Println("Successfully uploaded /tmp/foo.txt part 1!")
+
+	var parts []string
+	fmt.Printf("Part: %s\n", response2.Part)
+	parts = append(parts, response2.Part)
+	commitBody := storage.CommitMpuBody{
+		Parts: parts,
+	}
+
+	commitMpuInput := &storage.CommitMpuInput{
+		ObjectDirectoryPath: response.PartsDirectory,
+		Body: commitBody,
+	}
+	err = client.Objects().CommitMultipartUpload(context.Background(), commitMpuInput)
+	if err != nil {
+		log.Fatalf("storage.Objects.CommitMultipartUpload: %v", err)
+	}
+	fmt.Println("Successfully committed /tmp/foo.txt!")
+
+
 }

@@ -305,6 +305,10 @@ type UploadPartInput struct {
 	ObjectReader        io.Reader
 }
 
+type UploadPartOutput struct {
+	Part		string `json:"part"`
+}
+
 func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 	absPath := absFileInput(s.client.AccountName, input.ObjectPath)
 	if input.ForceInsert {
@@ -333,7 +337,7 @@ func (s *ObjectsClient) CreateMultipartUpload(ctx context.Context, input *Create
 	return createMpu(*s, ctx, input)
 }
 
-func (s *ObjectsClient) UploadPart(ctx context.Context, input *UploadPartInput) error {
+func (s *ObjectsClient) UploadPart(ctx context.Context, input *UploadPartInput) (*UploadPartOutput, error) {
 	return uploadPart(*s, ctx, input)
 }
 
@@ -439,9 +443,13 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 		Headers: &http.Header{},
 		Body:    input.Body,
 	}
-	_, err := c.client.ExecuteRequestRaw(ctx, reqInput)
+	respBody, _, err := c.client.ExecuteRequestStorage(ctx, reqInput)
 	if err != nil {
 		return errors.Wrap(err, "unable to commit mpu")
+	}
+
+	if respBody != nil {
+		defer respBody.Close()
 	}
 
 	return nil
@@ -485,7 +493,7 @@ func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) (*Cr
 	return response, nil
 }
 
-func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) error {
+func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) (*UploadPartOutput, error) {
 	headers := &http.Header{}
 	for key, value := range input.Headers {
 		headers.Set(key, value)
@@ -503,15 +511,18 @@ func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) er
 		Headers: &http.Header{},
 		Body:    input.ObjectReader,
 	}
-	respBody, _, err := c.client.ExecuteRequestNoEncode(ctx, reqInput)
+	respBody, respHeader, err := c.client.ExecuteRequestNoEncode(ctx, reqInput)
 	if respBody != nil {
 		defer respBody.Close()
 	}
 	if err != nil {
-		return errors.Wrap(err, "unable to upload part")
+		return nil, errors.Wrap(err, "unable to upload part")
 	}
 
-	return nil
+	uploadPartOutput := &UploadPartOutput{
+		Part: respHeader.Get("Etag"),
+	}
+	return uploadPartOutput, nil
 }
 
 func checkDirectoryTreeExists(c ObjectsClient, ctx context.Context, absPath _AbsCleanPath) (bool, error) {
