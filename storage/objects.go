@@ -325,7 +325,6 @@ func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 	return putObject(*s, ctx, input, absPath)
 }
 
-
 // UploadPartInput represents parameters to a UploadPart operation.
 type UploadPartInput struct {
 	ObjectDirectoryPath string
@@ -337,7 +336,7 @@ type UploadPartInput struct {
 
 // UploadPartOutput represents the response from a
 type UploadPartOutput struct {
-	Part		string `json:"part"`
+	Part string `json:"part"`
 }
 
 func (s *ObjectsClient) UploadPart(ctx context.Context, input *UploadPartInput) (*UploadPartOutput, error) {
@@ -457,7 +456,6 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 
 	return nil
 }
-
 
 func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) (*CreateMpuOutput, error) {
 	headers := &http.Header{}
