@@ -107,6 +107,8 @@ func main() {
 		Body:            mpuBody,
 	}
 
+	// Create a multipart upload to use for further testing
+	fmt.Println("*** Creating new multipart upload ***\n")
 	response := &storage.CreateMpuOutput{}
 	response, err = client.Objects().CreateMultipartUpload(context.Background(), createMpuInput)
 	if err != nil {
@@ -127,6 +129,8 @@ func main() {
 		ObjectReader:        reader,
 	}
 
+	// Upload a single part
+	fmt.Println("\n*** Upload a single part to the previous multipart upload ***\n")
 	response2 := &storage.UploadPartOutput{}
 	response2, err = client.Objects().UploadPart(context.Background(), uploadPartInput)
 	if err != nil {
@@ -146,14 +150,51 @@ func main() {
 		Body:                commitBody,
 	}
 
+	// Commit completed multipart upload
+	fmt.Println("\n*** Commit the completed multipart upload ***\n")
 	err = client.Objects().CommitMultipartUpload(context.Background(), commitMpuInput)
 	if err != nil {
 		log.Fatalf("storage.Objects.CommitMultipartUpload: %v", err)
 	}
 	fmt.Println("Successfully committed " + response.Id + "!")
 
+	getMpuInput := &storage.GetMpuInput{
+		PartsDirectoryPath: response.PartsDirectory,
+	}
+
+	// Get the status of the completed multipart upload
+	fmt.Println("\n*** Get the status of the multipart upload ***\n")
+	response3 := &storage.GetMpuOutput{}
+	response3, err = client.Objects().GetMultipartUpload(context.Background(), getMpuInput)
+	if err != nil {
+		log.Fatalf("storage.Objects.GetMultipartUpload: %v", err)
+	}
+	fmt.Println("Successful get of " + response3.Id + " for targetObject: " + response3.TargetObject)
+
 	err = os.Remove(localPath)
 	if err != nil {
 		log.Fatalf("os.Remove: %v", err)
 	}
+
+	// Create a new multipart upload just to test abort
+	fmt.Println("\n*** Create a throwaway multipart upload ***\n")
+	response, err = client.Objects().CreateMultipartUpload(context.Background(), createMpuInput)
+	if err != nil {
+		log.Fatalf("storage.Objects.CreateMpu: %v", err)
+	}
+	fmt.Printf("Response Body\nid: %s\npartsDirectory: %s\n", response.Id, response.PartsDirectory)
+	fmt.Println("Successfully created MPU for " + localPath)
+
+	abortMpuInput := &storage.AbortMpuInput{
+		PartsDirectoryPath: response.PartsDirectory,
+	}
+
+	// Abort multipart upload
+	fmt.Println("\n*** Abort the previous multipart upload ***\n")
+	err = client.Objects().AbortMultipartUpload(context.Background(), abortMpuInput)
+	if err != nil {
+		log.Fatalf("storage.Objects.AbortMultipartUpload: %v", err)
+	}
+
+	fmt.Println("Successfully aborted MPU")
 }

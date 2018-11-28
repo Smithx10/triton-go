@@ -28,6 +28,15 @@ type ObjectsClient struct {
 	client *client.Client
 }
 
+// AbortMpuInput represents parameters to a AbortMpu operation
+type AbortMpuInput struct {
+	PartsDirectoryPath string
+}
+
+func (s *ObjectsClient) AbortMultipartUpload(ctx context.Context, input *AbortMpuInput) error {
+	return abortMpu(*s, ctx, input)
+}
+
 // CommitMpuInput represents parameters to a CommitMpu operation
 type CommitMpuInput struct {
 	ObjectDirectoryPath string
@@ -246,6 +255,30 @@ func (s *ObjectsClient) Delete(ctx context.Context, input *DeleteObjectInput) er
 	return nil
 }
 
+// GetMpuInput represents parameters to a GetMpu operation
+type GetMpuInput struct {
+	PartsDirectoryPath string
+}
+
+type GetMpuHeaders struct {
+	ContentLength  int64 `json:content-length`
+	ContentMd5    string `json:content-md5`
+}
+
+type GetMpuOutput struct {
+	Id string `json:id`
+	State string `json:state`
+	PartsDirectory string `json:partsDirectory`
+	TargetObject string `json:targetObject`
+	Headers GetMpuHeaders `json:headers`
+	NumCopies int64 `json:numCopies`
+	CreationTimeMs int64 `json:creationTimeMs`
+}
+
+func (s *ObjectsClient) GetMultipartUpload(ctx context.Context, input *GetMpuInput) (*GetMpuOutput, error) {
+	return getMpu(*s, ctx, input)
+}
+
 // PutObjectMetadataInput represents parameters to a PutObjectMetadata operation.
 type PutObjectMetadataInput struct {
 	ObjectPath  string
@@ -433,6 +466,25 @@ func createDirectory(c ObjectsClient, ctx context.Context, absPath _AbsCleanPath
 	return nil
 }
 
+func abortMpu(c ObjectsClient, ctx context.Context, input *AbortMpuInput) error {
+	reqInput := client.RequestInput{
+		Method: http.MethodPost,
+		Path:   input.PartsDirectoryPath + "/abort",
+		Headers: &http.Header{},
+		Body:   nil,
+	}
+	respBody, _, err := c.client.ExecuteRequestStorage(ctx, reqInput)
+	if err != nil {
+		return errors.Wrap(err, "unable to abort mpu")
+	}
+
+	if respBody != nil {
+		defer respBody.Close()
+	}
+
+	return nil
+}
+
 func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) error {
 	headers := &http.Header{}
 	for key, value := range input.Headers {
@@ -442,7 +494,7 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 	reqInput := client.RequestInput{
 		Method:  http.MethodPost,
 		Path:    input.ObjectDirectoryPath + "/commit",
-		Headers: &http.Header{},
+		Headers: headers,
 		Body:    input.Body,
 	}
 	respBody, _, err := c.client.ExecuteRequestStorage(ctx, reqInput)
@@ -490,6 +542,28 @@ func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) (*Cr
 	decoder := json.NewDecoder(respBody)
 	if err = decoder.Decode(&response); err != nil {
 		return nil, errors.Wrap(err, "unable to decode create mpu response")
+	}
+
+	return response, nil
+}
+
+func getMpu(c ObjectsClient, ctx context.Context, input *GetMpuInput) (*GetMpuOutput, error) {
+	headers := &http.Header{}
+
+	reqInput := client.RequestInput{
+		Method:  http.MethodGet,
+		Path:    input.PartsDirectoryPath + "/state",
+		Headers: headers,
+	}
+	respBody, _, err := c.client.ExecuteRequestStorage(ctx, reqInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to get mpu")
+	}
+
+	response := &GetMpuOutput{}
+	decoder := json.NewDecoder(respBody)
+	if err = decoder.Decode(&response); err != nil {
+		return nil, errors.Wrap(err, "unable to decode get mpu response")
 	}
 
 	return response, nil
