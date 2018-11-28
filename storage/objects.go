@@ -28,6 +28,46 @@ type ObjectsClient struct {
 	client *client.Client
 }
 
+// CommitMpuInput represents parameters to a CommitMpu operation
+type CommitMpuInput struct {
+	ObjectDirectoryPath string
+	Headers             map[string]string
+	Body                CommitMpuBody
+}
+
+// CommitMpuBody represents the body of a CommitMpu request
+type CommitMpuBody struct {
+	Parts []string `json:"parts"`
+}
+
+func (s *ObjectsClient) CommitMultipartUpload(ctx context.Context, input *CommitMpuInput) error {
+	return commitMpu(*s, ctx, input)
+}
+
+// CreateMpuInput represents parameters to a CreateMpu operation.
+type CreateMpuInput struct {
+	DurabilityLevel uint64
+	ContentMD5      string
+	ContentLength   uint64
+	Body            CreateMpuBody
+}
+
+// CreateMpuOutput represents the response from a CreateMpu operation
+type CreateMpuOutput struct {
+	Id             string `json:"id"`
+	PartsDirectory string `json:"partsDirectory"`
+}
+
+// CreateMpuBody represents the body of a CreateMpu request.
+type CreateMpuBody struct {
+	ObjectPath string            `json:"objectPath"`
+	Headers    map[string]string `json:"headers,omitempty"`
+}
+
+func (s *ObjectsClient) CreateMultipartUpload(ctx context.Context, input *CreateMpuInput) (*CreateMpuOutput, error) {
+	return createMpu(*s, ctx, input)
+}
+
 // GetObjectInput represents parameters to a GetObject operation.
 type GetInfoInput struct {
 	ObjectPath string
@@ -250,37 +290,6 @@ func (s *ObjectsClient) PutMetadata(ctx context.Context, input *PutObjectMetadat
 	return nil
 }
 
-// CommitMpuBody represents the body of a CommitMpu request
-type CommitMpuBody struct {
-	Parts []string
-}
-
-// CreateMpuBody represents the body of a CreateMpu request.
-type CreateMpuBody struct {
-	ObjectPath string            `json:"objectPath"`
-	Headers    map[string]string `json:"headers,omitempty"`
-}
-
-// CommitMpuInput represents parameters to a CommitMpu operation
-type CommitMpuInput struct {
-	ObjectDirectoryPath string
-	Headers             map[string]string
-	Body                CommitMpuBody
-}
-
-// CreateMpuInput represents parameters to a CreateMpu operation.
-type CreateMpuInput struct {
-	DurabilityLevel uint64
-	ContentMD5      string
-	ContentLength   uint64
-	Body            CreateMpuBody
-}
-
-type CreateMpuOutput struct {
-	Id             string `json:"id"`
-	PartsDirectory string `json:"partsDirectory"`
-}
-
 // PutObjectInput represents parameters to a PutObject operation.
 type PutObjectInput struct {
 	ObjectPath       string
@@ -294,19 +303,6 @@ type PutObjectInput struct {
 	ObjectReader     io.Reader
 	Headers          map[string]string
 	ForceInsert      bool //Force the creation of the directory tree
-}
-
-// UploadPartInput represents parameters to a UploadPart operation.
-type UploadPartInput struct {
-	ObjectDirectoryPath string
-	PartNum             uint64
-	ContentMD5          string
-	Headers             map[string]string
-	ObjectReader        io.Reader
-}
-
-type UploadPartOutput struct {
-	Part		string `json:"part"`
 }
 
 func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
@@ -329,12 +325,19 @@ func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 	return putObject(*s, ctx, input, absPath)
 }
 
-func (s *ObjectsClient) CommitMultipartUpload(ctx context.Context, input *CommitMpuInput) error {
-	return commitMpu(*s, ctx, input)
+
+// UploadPartInput represents parameters to a UploadPart operation.
+type UploadPartInput struct {
+	ObjectDirectoryPath string
+	PartNum             uint64
+	ContentMD5          string
+	Headers             map[string]string
+	ObjectReader        io.Reader
 }
 
-func (s *ObjectsClient) CreateMultipartUpload(ctx context.Context, input *CreateMpuInput) (*CreateMpuOutput, error) {
-	return createMpu(*s, ctx, input)
+// UploadPartOutput represents the response from a
+type UploadPartOutput struct {
+	Part		string `json:"part"`
 }
 
 func (s *ObjectsClient) UploadPart(ctx context.Context, input *UploadPartInput) (*UploadPartOutput, error) {
@@ -454,6 +457,7 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 
 	return nil
 }
+
 
 func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) (*CreateMpuOutput, error) {
 	headers := &http.Header{}
