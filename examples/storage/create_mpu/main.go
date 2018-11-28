@@ -27,6 +27,9 @@ func main() {
 	accountName := os.Getenv("TRITON_ACCOUNT")
 	keyMaterial := os.Getenv("TRITON_KEY_MATERIAL")
 	userName := os.Getenv("TRITON_USER")
+	fileName := "foo.txt"
+	localPath := "/tmp/" + fileName
+	mantaPath := "/" + accountName + "/stor/" + fileName
 
 	var signer authentication.Signer
 	var err error
@@ -90,7 +93,13 @@ func main() {
 	}
 
 	mpuBody := storage.CreateMpuBody{
-		ObjectPath: "/" + accountName + "/stor/foo2.txt",
+		ObjectPath: mantaPath,
+	}
+
+	fooFile := []byte("this is only a test\n")
+	err = ioutil.WriteFile(localPath, fooFile, 0644)
+	if err != nil {
+		log.Fatalf("Failed to write temporary upload file " + localPath)
 	}
 
 	createMpuInput := &storage.CreateMpuInput{
@@ -104,9 +113,9 @@ func main() {
 		log.Fatalf("storage.Objects.CreateMpu: %v", err)
 	}
 	fmt.Printf("Response Body\nid: %s\npartsDirectory: %s\n", response.Id, response.PartsDirectory)
-	fmt.Println("Successfully created MPU for /tmp/foo.txt!")
+	fmt.Println("Successfully created MPU for " + localPath)
 
-	reader, err := os.Open("/tmp/foo.txt")
+	reader, err := os.Open(localPath)
 	if err != nil {
 		log.Fatalf("os.Open: %v", err)
 	}
@@ -114,8 +123,8 @@ func main() {
 
 	uploadPartInput := &storage.UploadPartInput{
 		ObjectDirectoryPath: response.PartsDirectory,
-		PartNum:	     0,
-		ObjectReader:	     reader,
+		PartNum:             0,
+		ObjectReader:        reader,
 	}
 
 	response2 := &storage.UploadPartOutput{}
@@ -123,7 +132,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("storage.Objects.UploadPart: %v", err)
 	}
-	fmt.Println("Successfully uploaded /tmp/foo.txt part 0!")
+	fmt.Println("Successfully uploaded " + fileName + " part 0!")
 
 	var parts []string
 	fmt.Printf("Part: %s\n", response2.Part)
@@ -134,14 +143,17 @@ func main() {
 
 	commitMpuInput := &storage.CommitMpuInput{
 		ObjectDirectoryPath: response.PartsDirectory,
-		Body: commitBody,
+		Body:                commitBody,
 	}
 
 	err = client.Objects().CommitMultipartUpload(context.Background(), commitMpuInput)
 	if err != nil {
 		log.Fatalf("storage.Objects.CommitMultipartUpload: %v", err)
 	}
-	fmt.Println("Successfully committed /tmp/foo.txt!")
+	fmt.Println("Successfully committed " + response.Id + "!")
 
-
+	err = os.Remove(localPath)
+	if err != nil {
+		log.Fatalf("os.Remove: %v", err)
+	}
 }
