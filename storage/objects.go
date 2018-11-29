@@ -360,7 +360,7 @@ func (s *ObjectsClient) Put(ctx context.Context, input *PutObjectInput) error {
 
 // UploadPartInput represents parameters to a UploadPart operation.
 type UploadPartInput struct {
-	ObjectDirectoryPath string
+	Id		    string
 	PartNum             uint64
 	ContentMD5          string
 	Headers             map[string]string
@@ -578,8 +578,15 @@ func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) (*
 	if input.ContentMD5 != "" {
 		headers.Set("Content-MD5", input.ContentMD5)
 	}
+	id := input.Id
+	idLength := len(id)
 	partNum := strconv.FormatUint(input.PartNum, 10)
-	partPath := input.ObjectDirectoryPath + "/" + partNum
+	prefixLen, err := strconv.Atoi(id[idLength - 1:idLength])
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to upload part")
+	}
+	prefix := id[:prefixLen]
+	partPath := "/" + c.client.AccountName + "/uploads/" + prefix + "/" + input.Id + "/" + partNum
 
 	reqInput := client.RequestNoEncodeInput{
 		Method:  http.MethodPut,

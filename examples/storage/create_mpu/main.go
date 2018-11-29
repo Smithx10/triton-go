@@ -124,10 +124,12 @@ func main() {
 	defer reader.Close()
 
 	uploadPartInput := &storage.UploadPartInput{
-		ObjectDirectoryPath: response.PartsDirectory,
+		Id:                  response.Id,
 		PartNum:             0,
 		ObjectReader:        reader,
 	}
+
+	fmt.Println("ObjectDirectorPath for UploadPartInput: " + response.PartsDirectory)
 
 	// Upload a single part
 	fmt.Println("\n*** Upload a single part to the previous multipart upload ***\n")
