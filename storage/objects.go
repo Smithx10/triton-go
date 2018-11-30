@@ -39,7 +39,7 @@ func (s *ObjectsClient) AbortMultipartUpload(ctx context.Context, input *AbortMp
 
 // CommitMpuInput represents parameters to a CommitMpu operation
 type CommitMpuInput struct {
-	ObjectDirectoryPath string
+	Id                  string
 	Headers             map[string]string
 	Body                CommitMpuBody
 }
@@ -279,6 +279,18 @@ func (s *ObjectsClient) GetMultipartUpload(ctx context.Context, input *GetMpuInp
 	return getMpu(*s, ctx, input)
 }
 
+type ListMpuPartsInput struct {
+	Id string
+}
+
+type ListMpuPartsOutput struct {
+	Parts []string
+}
+
+func (s *ObjectsClient) ListMultipartUploadParts(ctx context.Context, input *ListMpuPartsInput) (*ListMpuPartsOutput, error) {
+	return listMpuParts(*s, ctx, input)
+}
+
 // PutObjectMetadataInput represents parameters to a PutObjectMetadata operation.
 type PutObjectMetadataInput struct {
 	ObjectPath  string
@@ -491,9 +503,18 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 		headers.Set(key, value)
 	}
 
+	id := input.Id
+	idLength := len(id)
+	prefixLen, err := strconv.Atoi(id[idLength - 1:idLength])
+	if err != nil {
+		return errors.Wrap(err, "unable to upload part")
+	}
+	prefix := id[:prefixLen]
+	partPath := "/" + c.client.AccountName + "/uploads/" + prefix + "/" + input.Id + "/commit"
+
 	reqInput := client.RequestInput{
 		Method:  http.MethodPost,
-		Path:    input.ObjectDirectoryPath + "/commit",
+		Path:    partPath,
 		Headers: headers,
 		Body:    input.Body,
 	}
@@ -567,6 +588,40 @@ func getMpu(c ObjectsClient, ctx context.Context, input *GetMpuInput) (*GetMpuOu
 	}
 
 	return response, nil
+}
+
+func listMpuParts(c ObjectsClient, ctx context.Context, input *ListMpuPartsInput) (*ListMpuPartsOutput, error) {
+	id := input.Id
+	idLength := len(id)
+	prefixLen, err := strconv.Atoi(id[idLength - 1:idLength])
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to upload part")
+	}
+	prefix := id[:prefixLen]
+	partPath := "/" + c.client.AccountName + "/uploads/" + prefix + "/" + input.Id + "/"
+	listDirInput := ListDirectoryInput{
+		DirectoryName: partPath,
+	}
+
+	dirClient := &DirectoryClient{
+		client: c.client,
+	}
+
+	listDirOutput, err := dirClient.List(ctx, &listDirInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to list mpu parts")
+	}
+
+	var parts []string
+	for _, part := range listDirOutput.Entries {
+		parts = append(parts, part.ETag)
+	}
+
+	listMpuPartsOutput := &ListMpuPartsOutput{
+		Parts: parts,
+	}
+
+	return listMpuPartsOutput, nil
 }
 
 func uploadPart(c ObjectsClient, ctx context.Context, input *UploadPartInput) (*UploadPartOutput, error) {

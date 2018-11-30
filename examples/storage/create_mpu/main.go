@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"encoding/pem"
 
@@ -148,9 +149,20 @@ func main() {
 	}
 
 	commitMpuInput := &storage.CommitMpuInput{
-		ObjectDirectoryPath: response.PartsDirectory,
-		Body:                commitBody,
+		Id:   response.Id,
+		Body: commitBody,
 	}
+
+	// List parts
+	fmt.Println("\n*** List the parts of the current multipart upload ***\n")
+	listMpuInput := &storage.ListMpuPartsInput{
+		Id: response.Id,
+	}
+	listPartsOutput, err := client.Objects().ListMultipartUploadParts(context.Background(), listMpuInput)
+	if err != nil {
+		log.Fatalf("storage.Objects.ListMultipartUploadParts: %v", err)
+	}
+	fmt.Println("Successfully listed MPU parts: " + strings.Join(listPartsOutput.Parts, " "))
 
 	// Commit completed multipart upload
 	fmt.Println("\n*** Commit the completed multipart upload ***\n")
