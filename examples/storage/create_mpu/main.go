@@ -31,7 +31,7 @@ func main() {
 	fileName := "foo.txt"
 	localPath := "/tmp/" + fileName
 	//mantaPath := "/" + accountName + "/stor/" + fileName
-	mantaPath := "/stor/" + fileName
+	mantaPath := "/stor/bar/baz/" + fileName
 
 	var signer authentication.Signer
 	var err error
@@ -107,6 +107,7 @@ func main() {
 	createMpuInput := &storage.CreateMpuInput{
 		DurabilityLevel: 2,
 		Body:            mpuBody,
+		ForceInsert:     true,
 	}
 
 	// Create a multipart upload to use for further testing

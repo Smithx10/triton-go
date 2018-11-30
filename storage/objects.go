@@ -11,7 +11,6 @@ package storage
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -56,10 +55,11 @@ func (s *ObjectsClient) CommitMultipartUpload(ctx context.Context, input *Commit
 
 // CreateMpuInput represents parameters to a CreateMpu operation.
 type CreateMpuInput struct {
-	DurabilityLevel uint64
-	ContentMD5      string
-	ContentLength   uint64
 	Body            CreateMpuBody
+	ContentLength   uint64
+	ContentMD5      string
+	DurabilityLevel uint64
+	ForceInsert     bool //Force the creation of the directory tree
 }
 
 // CreateMpuOutput represents the response from a CreateMpu operation
@@ -514,11 +514,10 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 	idLength := len(id)
 	prefixLen, err := strconv.Atoi(id[idLength - 1:idLength])
 	if err != nil {
-		return errors.Wrap(err, "unable to upload part")
+		return errors.Wrap(err, "unable to commit mpu")
 	}
 	prefix := id[:prefixLen]
 	partPath := "/" + c.client.AccountName + "/uploads/" + prefix + "/" + input.Id + "/commit"
-	fmt.Println("commiting with path: " + partPath)
 
 	reqInput := client.RequestInput{
 		Method:  http.MethodPost,
@@ -539,6 +538,21 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 }
 
 func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) (*CreateMpuOutput, error) {
+	absPath := absFileInput(c.client.AccountName, input.Body.ObjectPath)
+
+	// Because some clients will be treating Manta like S3, they will
+	// include slashes in object names which we'll need to convert to
+	// directories
+	if input.ForceInsert {
+		absDirName := _AbsCleanPath(path.Dir(string(absPath)))
+		exists, _ := checkDirectoryTreeExists(c, ctx, absDirName)
+		if !exists {
+			err := createDirectory(c, ctx, absDirName)
+			if err != nil {
+				return nil, errors.Wrap(err, "unable to create directory for create mpu operation")
+			}
+		}
+	}
 	headers := &http.Header{}
 	for key, value := range input.Body.Headers {
 		headers.Set(key, value)
@@ -553,8 +567,7 @@ func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) (*Cr
 		headers.Set("Content-MD5", input.ContentMD5)
 	}
 
-	input.Body.ObjectPath = "/" + c.client.AccountName + input.Body.ObjectPath
-
+	input.Body.ObjectPath = string(absPath)
 	reqInput := client.RequestInput{
 		Method:  http.MethodPost,
 		Path:    "/" + c.client.AccountName + "/uploads",
