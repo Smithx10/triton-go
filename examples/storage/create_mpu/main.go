@@ -14,7 +14,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
+	"strconv"
 
 	"encoding/pem"
 
@@ -30,7 +30,8 @@ func main() {
 	userName := os.Getenv("TRITON_USER")
 	fileName := "foo.txt"
 	localPath := "/tmp/" + fileName
-	mantaPath := "/" + accountName + "/stor/" + fileName
+	//mantaPath := "/" + accountName + "/stor/" + fileName
+	mantaPath := "/stor/" + fileName
 
 	var signer authentication.Signer
 	var err error
@@ -162,7 +163,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("storage.Objects.ListMultipartUploadParts: %v", err)
 	}
-	fmt.Println("Successfully listed MPU parts: " + strings.Join(listPartsOutput.Parts, " "))
+	for _, value := range listPartsOutput.Parts {
+		fmt.Println("Etag: " + value.ETag + " PartNumber: " + strconv.Itoa(value.PartNumber) + " Size: " + strconv.FormatInt(value.Size, 10))
+	}
+	fmt.Println("Successfully listed MPU parts!")
 
 	// Commit completed multipart upload
 	fmt.Println("\n*** Commit the completed multipart upload ***\n")

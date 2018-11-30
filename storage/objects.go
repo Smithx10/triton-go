@@ -11,6 +11,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -283,8 +284,14 @@ type ListMpuPartsInput struct {
 	Id string
 }
 
+type ListMpuPart struct {
+	ETag string
+	PartNumber int
+	Size int64
+}
+
 type ListMpuPartsOutput struct {
-	Parts []string
+	Parts []ListMpuPart
 }
 
 func (s *ObjectsClient) ListMultipartUploadParts(ctx context.Context, input *ListMpuPartsInput) (*ListMpuPartsOutput, error) {
@@ -511,6 +518,7 @@ func commitMpu(c ObjectsClient, ctx context.Context, input *CommitMpuInput) erro
 	}
 	prefix := id[:prefixLen]
 	partPath := "/" + c.client.AccountName + "/uploads/" + prefix + "/" + input.Id + "/commit"
+	fmt.Println("commiting with path: " + partPath)
 
 	reqInput := client.RequestInput{
 		Method:  http.MethodPost,
@@ -544,6 +552,8 @@ func createMpu(c ObjectsClient, ctx context.Context, input *CreateMpuInput) (*Cr
 	if input.ContentMD5 != "" {
 		headers.Set("Content-MD5", input.ContentMD5)
 	}
+
+	input.Body.ObjectPath = "/" + c.client.AccountName + input.Body.ObjectPath
 
 	reqInput := client.RequestInput{
 		Method:  http.MethodPost,
@@ -612,9 +622,13 @@ func listMpuParts(c ObjectsClient, ctx context.Context, input *ListMpuPartsInput
 		return nil, errors.Wrap(err, "unable to list mpu parts")
 	}
 
-	var parts []string
-	for _, part := range listDirOutput.Entries {
-		parts = append(parts, part.ETag)
+	var parts []ListMpuPart
+	for num, part := range listDirOutput.Entries {
+		parts = append(parts, ListMpuPart{
+			ETag: part.ETag,
+			PartNumber: num,
+			Size: int64(part.Size),
+		})
 	}
 
 	listMpuPartsOutput := &ListMpuPartsOutput{
